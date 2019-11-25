@@ -3,6 +3,8 @@ package com.diogomendes.algafood.api.controller;
 import java.net.URI;
 import java.util.List;
 
+import javax.validation.Valid;
+
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -64,7 +66,7 @@ public class CozinhaController {
 	 * @return
 	 */
 	@PostMapping
-	public ResponseEntity<?> salvar(@RequestBody Cozinha cozinha) {
+	public ResponseEntity<?> salvar(@Valid @RequestBody Cozinha cozinha) {
 		cozinha = cozinhaService.salvar(cozinha);
 		URI uri = ServletUriComponentsBuilder.fromCurrentRequestUri().path("/{id}").buildAndExpand(cozinha.getId())
 				.toUri();
@@ -79,7 +81,7 @@ public class CozinhaController {
 	 * @return
 	 */
 	@PutMapping("/{id}")
-	public ResponseEntity<?> alterar(@PathVariable Long id, @RequestBody Cozinha cozinha) {
+	public ResponseEntity<?> alterar(@PathVariable Long id, @RequestBody @Valid Cozinha cozinha) {
 		Cozinha cozinhaAtual = cozinhaService.buscarCozinha(id);
 
 		BeanUtils.copyProperties(cozinha, cozinhaAtual, "id");

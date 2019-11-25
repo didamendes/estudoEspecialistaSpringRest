@@ -3,6 +3,8 @@ package com.diogomendes.algafood.api.controller;
 import java.net.URI;
 import java.util.List;
 
+import javax.validation.Valid;
+
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -64,7 +66,7 @@ public class EstadoController {
 	 * @return
 	 */
 	@PostMapping
-	public ResponseEntity<?> salvar(@RequestBody Estado estado) {
+	public ResponseEntity<?> salvar(@RequestBody @Valid Estado estado) {
 		Estado estadoSalvo = estadoService.salvar(estado);
 		URI uri = ServletUriComponentsBuilder.fromCurrentRequestUri().path("/{id}").buildAndExpand(estadoSalvo.getId())
 				.toUri();
@@ -79,7 +81,7 @@ public class EstadoController {
 	 * @return
 	 */
 	@PutMapping("/{id}")
-	public ResponseEntity<?> alterar(@PathVariable Long id, @RequestBody Estado estado) {
+	public ResponseEntity<?> alterar(@PathVariable Long id, @RequestBody @Valid Estado estado) {
 		Estado estadoVigente = estadoService.buscarEstado(id);
 
 		BeanUtils.copyProperties(estado, estadoVigente, "id");

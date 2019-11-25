@@ -3,6 +3,8 @@ package com.diogomendes.algafood.api.controller;
 import java.net.URI;
 import java.util.List;
 
+import javax.validation.Valid;
+
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -67,7 +69,7 @@ public class CidadeController {
 	 * @return
 	 */
 	@PostMapping
-	public ResponseEntity<?> salvar(@RequestBody Cidade cidade) {
+	public ResponseEntity<?> salvar(@RequestBody @Valid Cidade cidade) {
 
 		try {
 			Cidade cidadeSalva = cidadeService.salvar(cidade);
@@ -87,7 +89,7 @@ public class CidadeController {
 	 * @return
 	 */
 	@PutMapping("/{id}")
-	public ResponseEntity<?> alterar(@PathVariable Long id, @RequestBody Cidade cidade) {
+	public ResponseEntity<?> alterar(@PathVariable Long id, @RequestBody @Valid Cidade cidade) {
 		try {
 			Cidade cidadeVigente = cidadeService.buscarCidade(id);
 			BeanUtils.copyProperties(cidade, cidadeVigente, "id");

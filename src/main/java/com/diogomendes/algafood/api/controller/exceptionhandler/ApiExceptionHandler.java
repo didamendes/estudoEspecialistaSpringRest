@@ -1,14 +1,21 @@
 package com.diogomendes.algafood.api.controller.exceptionhandler;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.springframework.beans.TypeMismatchException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
@@ -16,6 +23,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import com.diogomendes.algafood.core.validation.ValidacaoException;
 import com.diogomendes.algafood.domain.exception.EntidadeEmUsoException;
 import com.diogomendes.algafood.domain.exception.EntidadeNaoEncontradaException;
 import com.diogomendes.algafood.domain.exception.NegocioException;
@@ -25,8 +33,51 @@ import com.fasterxml.jackson.databind.exc.PropertyBindingException;
 @ControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
+	@Autowired
+	private MessageSource messageSource;
+
 	public static final String MSG_ERRO_GENERICA_USUARIO_FINAL = "Ocorreu um erro interno inesperado no sistema. Tente novamente e se "
 			+ "o problema persistir, entre em contato com o administrador do sistema.";
+
+	public static final String MSG_DADOS_INVALIDOS = "Um ou mais campos estão inválidos. Faça o preenchimento correto e tente novamente.";
+
+	@Override
+	protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
+			HttpHeaders headers, HttpStatus status, WebRequest request) {
+
+		ProblemType problemType = ProblemType.DADOS_INVALIDOS;
+		String detail = MSG_DADOS_INVALIDOS;
+
+		BindingResult bindingResult = ex.getBindingResult();
+
+		List<Problem.Object> fieldsErrors = fieldsErros(bindingResult);
+
+		Problem problem = Problem(status, problemType, detail, fieldsErrors);
+
+		return handleExceptionInternal(ex, problem, headers, status, request);
+	}
+
+	/**
+	 * Tratar os erros de {@link ValidacaoException}.
+	 * 
+	 * @param ex
+	 * @param request
+	 * @return
+	 */
+	@ExceptionHandler(ValidacaoException.class)
+	public ResponseEntity<Object> handleValidacaoException(ValidacaoException ex, WebRequest request) {
+		ProblemType problemType = ProblemType.DADOS_INVALIDOS;
+		String detail = MSG_DADOS_INVALIDOS;
+
+		BindingResult bindingResult = ex.getBindingResult();
+
+		List<Problem.Object> fieldsErrors = fieldsErros(bindingResult);
+
+		Problem problem = createProblemBuilder(HttpStatus.BAD_REQUEST, problemType, detail).userMessage(detail)
+				.objects(fieldsErrors).build();
+
+		return handleExceptionInternal(ex, problem, new HttpHeaders(), HttpStatus.BAD_REQUEST, request);
+	}
 
 	/**
 	 * Tratar os erros de {@link Exception}.
@@ -272,6 +323,45 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 				.build();
 
 		return handleExceptionInternal(ex, problem, headers, status, request);
+	}
+
+	/**
+	 * Método responsavel de retorna o Problem para os
+	 * {@link MethodArgumentNotValidException} e {@link ValidacaoException}.
+	 * 
+	 * @param status
+	 * @param problemType
+	 * @param detail
+	 * @param fieldsErrors
+	 * @return
+	 */
+	private Problem Problem(HttpStatus status, ProblemType problemType, String detail,
+			List<Problem.Object> fieldsErrors) {
+		Problem problem = createProblemBuilder(status, problemType, detail).userMessage(detail).objects(fieldsErrors)
+				.build();
+		return problem;
+	}
+
+	/**
+	 * Método responsavel por montar o {@link Problem.Object} para
+	 * {@link MethodArgumentNotValidException} e {@link ValidacaoException}
+	 * 
+	 * @param bindingResult
+	 * @return
+	 */
+	private List<Problem.Object> fieldsErros(BindingResult bindingResult) {
+		List<Problem.Object> fieldsErrors = bindingResult.getAllErrors().stream().map(objectError -> {
+			String message = messageSource.getMessage(objectError, LocaleContextHolder.getLocale());
+
+			String name = objectError.getObjectName();
+
+			if (objectError instanceof FieldError) {
+				name = ((FieldError) objectError).getField();
+			}
+
+			return Problem.Object.builder().name(name).userMessage(message).build();
+		}).collect(Collectors.toList());
+		return fieldsErrors;
 	}
 
 }

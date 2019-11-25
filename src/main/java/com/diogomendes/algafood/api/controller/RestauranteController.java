@@ -4,9 +4,9 @@ import java.lang.reflect.Field;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.validation.Valid;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.springframework.beans.BeanUtils;
@@ -15,6 +15,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.util.ReflectionUtils;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.validation.SmartValidator;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.diogomendes.algafood.core.validation.ValidacaoException;
 import com.diogomendes.algafood.domain.exception.CozinhaNaoEncontradaException;
 import com.diogomendes.algafood.domain.exception.NegocioException;
 import com.diogomendes.algafood.domain.model.Restaurante;
@@ -48,6 +51,9 @@ public class RestauranteController {
 
 	@Autowired
 	private RestauranteRepository restauranteRepository;
+
+	@Autowired
+	private SmartValidator validator;
 
 	/**
 	 * Retorna uma lista de {@link Restaurante}.
@@ -81,7 +87,7 @@ public class RestauranteController {
 	 * @return
 	 */
 	@PostMapping
-	public ResponseEntity<?> salvar(@RequestBody Restaurante restaurante) {
+	public ResponseEntity<?> salvar(@Valid @RequestBody Restaurante restaurante) {
 		try {
 			restaurante = restauranteService.salvar(restaurante);
 			URI uri = ServletUriComponentsBuilder.fromCurrentRequestUri().path("/{id}")
@@ -100,12 +106,14 @@ public class RestauranteController {
 	 * @return
 	 */
 	@PutMapping("/{id}")
-	public ResponseEntity<?> alterar(@PathVariable Long id, @RequestBody Restaurante restaurante) {
-		Restaurante restauranteAtual = restauranteService.buscarRestaurante(id);
-
-		BeanUtils.copyProperties(restaurante, restauranteAtual, "id", "formasPagamento", "endereco", "dataCadastro");
-
+	public ResponseEntity<?> alterar(@PathVariable(required = true) Long id,
+			@RequestBody @Valid Restaurante restaurante) {
 		try {
+			Restaurante restauranteAtual = restauranteService.buscarRestaurante(id);
+
+			BeanUtils.copyProperties(restaurante, restauranteAtual, "id", "formasPagamento", "endereco",
+					"dataCadastro");
+
 			Restaurante restauranteSalvo = restauranteService.salvar(restauranteAtual);
 			return ResponseEntity.ok(restauranteSalvo);
 		} catch (CozinhaNaoEncontradaException e) {
@@ -123,15 +131,27 @@ public class RestauranteController {
 	@PatchMapping("/{restauranteId}")
 	public ResponseEntity<?> atualizarParcial(@PathVariable Long restauranteId, @RequestBody Map<String, Object> campos,
 			HttpServletRequest request) {
-		Optional<Restaurante> restauranteAtual = restauranteRepository.findById(restauranteId);
+		Restaurante restauranteAtual = restauranteService.buscarRestaurante(restauranteId);
 
-		if (restauranteAtual.isEmpty()) {
-			return ResponseEntity.notFound().build();
+		merge(campos, restauranteAtual, request);
+		validate(restauranteAtual, "restaurante");
+
+		return alterar(restauranteId, restauranteAtual);
+	}
+
+	/**
+	 * Valida os campos do tipo Patch.
+	 * 
+	 * @param restauranteAtual
+	 * @param string
+	 */
+	private void validate(Restaurante restaurante, String objectName) {
+		BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(restaurante, objectName);
+		validator.validate(restaurante, bindingResult);
+		
+		if (bindingResult.hasErrors()) {
+			throw new ValidacaoException(bindingResult);
 		}
-
-		merge(campos, restauranteAtual.get(), request);
-
-		return alterar(restauranteId, restauranteAtual.get());
 	}
 
 	/**
